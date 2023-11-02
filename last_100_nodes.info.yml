@@ -1,0 +1,5 @@
+name: Last 100 Nodes
+description: This module provides an endpoint to get the last 100 nodes in JSON format.
+package: Custom
+version: 1.0.0
+core: 9.5

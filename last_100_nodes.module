@@ -1,0 +1,79 @@
+<?php
+
+namespace Drupal\last_100_nodes\Controller;
+
+use Drupal\Core\Controller\ControllerBase;
+use Drupal\jsonapi\ResourceType\ResourceTypeRepository;
+use Drupal\node\Entity\Node;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+
+/**
+ * Class Last100NodesController.
+ */
+class Last100NodesController extends ControllerBase {
+
+  /**
+   * The JSON:API resource type repository.
+   *
+   * @var \Drupal\jsonapi\ResourceType\ResourceTypeRepository
+   */
+  protected $resourceTypeRepository;
+
+  /**
+   * Last100NodesController constructor.
+   *
+   * @param \Drupal\jsonapi\ResourceType\ResourceTypeRepository $resource_type_repository
+   *   The JSON:API resource type repository.
+   */
+  public function __construct(ResourceTypeRepository $resource_type_repository) {
+    $this->resourceTypeRepository = $resource_type_repository;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('jsonapi.resource_type.repository')
+    );
+  }
+
+  /**
+   * Gets the last 100 nodes in DESC order nid in JSON format.
+   *
+   * @return \Symfony\Component\HttpFoundation\Response
+   *   The JSON response.
+   */
+ public function getLast100Nodes() {
+  $query = \Drupal::entityQuery('node');
+  $query->sort('created', 'DESC');
+  $query->range(0, 100);
+  $nodes = $query->execute();
+
+  $nodes_array = [];
+  foreach ($nodes as $node) {
+    $node_array = [
+      'nid' => $node->id(),
+      'created' => $node->getCreatedTime(),
+      'title' => $node->getTitle(),
+      'body' => $node->getBody()->getValue(),
+      'filtered_body' => filter_xss($node->getBody()->getValue()),
+    ];
+
+    // Get the image field URL.
+    $image_field = $node->field_image->getValue();
+    if (!empty($image_field)) {
+      $image_uri = $image_field[0]['uri'];
+      $image_url = $this->resourceTypeRepository->get('file')
+        ->getNormalizationReference(file_load($image_uri));
+      $node_array['field_image'] = $image_url;
+    }
+
+    $nodes_array[] = $node_array;
+  }
+
+  $response = new JsonResponse($nodes_array);
+  $response->headers->set('Content-Type', 'application/json');
+
+  return $response;
+}
